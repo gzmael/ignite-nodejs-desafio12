@@ -1,0 +1,89 @@
+service: desafio12
+
+configValidationMode: error
+useDotenv: true
+
+# frameworkVersion: ">=1.1.0 <=2.52.0"
+
+plugins:
+  - serverless-offline
+  - serverless-webpack
+  - serverless-dynamodb-local
+  - serverless-iam-roles-per-function
+
+custom:
+  webpack:
+    webpackConfig: ./webpack.config.js
+    includeModules: true
+  dynamodb:
+    stages:
+      - dev
+      - local
+    start:
+      port: 8000
+      inMemory: true
+      migrate: true
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+  region: us-east-1
+  lambdaHashingVersion: 20201221
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:*
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - s3:*
+          Resource: "*"
+
+functions:
+  create:
+    handler: src/functions/create.handle
+    events:
+      - http:
+          path: todos/{userid}
+          method: post
+          cors: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:PutItem
+        Resource: 
+          - !Sub arn:aws:dynamodb:${self.provider.region}:*:table/desafio12
+
+  verify:
+    handler: src/functions/restore.handle
+    events:
+      - http:
+          path: todos/{userid}
+          method: get
+          cors: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+        Resource: 
+          - !Sub arn:aws:dynamodb:${self.provider.region}:*:table/desafio12
+
+resources:
+  Resources:
+    dbCertificateUsers:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      Properties:
+        TableName: desafio12
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
